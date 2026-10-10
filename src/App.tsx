@@ -15,7 +15,7 @@ import { YearlyReportView } from './components/reports/YearlyReportView';
 import { SettingsView } from './components/settings/SettingsView';
 
 const MainContent: React.FC = () => {
-  const { activeTab, isLocked } = useApp();
+  const { activeTab, isLocked, isSecurityLoading } = useApp();
 
   return (
     <div className="mm-app min-h-screen text-[#2E2733] flex flex-col font-sans pb-24">
@@ -23,7 +23,7 @@ const MainContent: React.FC = () => {
       <PinLockScreen />
 
       {/* App Content rendered only when unlocked or blurred behind overlay */}
-      {!isLocked && (
+      {!isLocked && !isSecurityLoading && (
         <>
           <Header />
 

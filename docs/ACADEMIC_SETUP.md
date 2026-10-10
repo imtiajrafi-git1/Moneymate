@@ -21,9 +21,10 @@ browser developer tools or the device profile. Do not treat a local PIN as datab
 
 ## Supabase Setup
 
-1. Create a Supabase project. In the SQL Editor, execute both migrations, in order:
+1. Create a Supabase project. In the SQL Editor, execute these migrations in order:
    `supabase/migrations/202608200001_academic_tracker.sql`, then
-   `supabase/migrations/202610090001_finance_tracker.sql`.
+   `supabase/migrations/202610090001_finance_tracker.sql`, then
+   `supabase/migrations/202610100001_synced_app_lock.sql`.
 2. Copy `.env.example` to `.env.local`. Set `NEXT_PUBLIC_SUPABASE_URL` to the project URL and
    `NEXT_PUBLIC_SUPABASE_ANON_KEY` to the publishable/anon client key. The app also accepts the
    equivalent `VITE_` names. Never use a service-role/secret key.
@@ -39,11 +40,21 @@ browser developer tools or the device profile. Do not treat a local PIN as datab
 7. Sign in with the same Supabase account on each device. Cloud records load when the app opens
    and refresh when it returns to the foreground; records entered while signed out remain local
    until explicitly backed up.
+8. The first device to initialize app lock for an account seeds its current PIN. After that, a
+   PIN change in Settings is saved as a bcrypt hash and is used by every device signed in to the
+   same account. The PIN itself is never fetched from Supabase. PIN verification requires an
+   internet connection and pauses after five consecutive incorrect attempts for five minutes.
 
 Local device records are kept when cloud is connected. Cloud reads are not written into the
 localStorage keys, so signing out restores the device ledger rather than another account's data.
-App PIN, biometric, and profile preferences remain device-local. Reset to Sample Data resets
-device data only; it never deletes Supabase records.
+Biometric and profile preferences remain device-local. The shared app PIN hash and enabled state
+are stored separately in Supabase; PIN changes require signing in to the same account. Reset to
+Sample Data resets device data only; it never deletes Supabase records.
+
+The Lock control in the header and Settings immediately opens the PIN screen. The app also
+automatically locks after three minutes without keyboard/pointer/touch activity, or after it
+remains in the background for three minutes. Returning before that background interval expires
+keeps the current session unlocked.
 
 ## Tables and Storage
 

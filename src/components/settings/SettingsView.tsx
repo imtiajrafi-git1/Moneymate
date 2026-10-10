@@ -28,7 +28,7 @@ export const SettingsView: React.FC = () => {
     academicUser,
   } = useApp();
 
-  const [pinInput, setPinInput] = useState(settings.pin);
+  const [pinInput, setPinInput] = useState(academicUser ? '' : settings.pin);
   const [userNameInput, setUserNameInput] = useState(settings.userName);
   const [userEmailInput, setUserEmailInput] = useState(settings.userEmail);
   const [currencyInput, setCurrencyInput] = useState(settings.currencySymbol);

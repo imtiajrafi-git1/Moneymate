@@ -1,17 +1,17 @@
 import React, { useRef, useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Lock, Delete, ShieldAlert } from 'lucide-react';
+import { Lock, Delete, Loader2, ShieldAlert } from 'lucide-react';
 import { LOGO_URL } from '../../utils/brand';
 
 export const PinLockScreen: React.FC = () => {
-  const { isLocked, unlockApp } = useApp();
+  const { isLocked, isSecurityLoading, unlockApp } = useApp();
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [checking, setChecking] = useState(false);
   const checkingRef = useRef(false);
   const [logoFailed, setLogoFailed] = useState(false);
 
-  if (!isLocked) return null;
+  if (!isLocked && !isSecurityLoading) return null;
 
   const handleKeyPress = async (num: string) => {
     if (pin.length >= 4 || checkingRef.current) return;
@@ -77,7 +77,7 @@ export const PinLockScreen: React.FC = () => {
 
         {/* Instruction */}
         <p className="mt-4 mb-5 font-sans text-[12px] font-medium text-[#635B6B]">
-          Enter your 4-digit PIN
+          {isSecurityLoading ? 'Syncing your shared app lock...' : 'Enter your 4-digit PIN'}
         </p>
 
         {/* PIN Indicators */}
@@ -107,12 +107,13 @@ export const PinLockScreen: React.FC = () => {
         )}
 
         {/* Keypad */}
+        {isSecurityLoading && <Loader2 className="mb-4 h-5 w-5 animate-spin text-[#8C7C91]" aria-label="Loading shared app lock" />}
         <div className="grid grid-cols-3 gap-2.5 w-full mb-3">
           {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
             <button
               key={digit}
               onClick={() => void handleKeyPress(digit)}
-              disabled={checking}
+              disabled={checking || isSecurityLoading}
               aria-label={`Digit ${digit}`}
               className="h-12 rounded-full font-sans text-[17px] font-semibold text-[#2E2733] bg-white/80 border border-[#E7D6C4] hover:bg-white hover:border-[#C4AB94] active:scale-[0.96] transition-all flex items-center justify-center cursor-pointer"
             >
@@ -121,7 +122,7 @@ export const PinLockScreen: React.FC = () => {
           ))}
           <button
             onClick={handleClear}
-            disabled={checking}
+            disabled={checking || isSecurityLoading}
             aria-label="Clear PIN input"
             className="h-12 rounded-full font-sans text-[11px] font-semibold text-[#635B6B] bg-transparent hover:bg-white hover:text-[#2E2733] transition-colors flex items-center justify-center cursor-pointer"
           >
@@ -129,7 +130,7 @@ export const PinLockScreen: React.FC = () => {
           </button>
           <button
             onClick={() => void handleKeyPress('0')}
-            disabled={checking}
+            disabled={checking || isSecurityLoading}
             aria-label="Digit 0"
             className="h-12 rounded-full font-sans text-[17px] font-semibold text-[#2E2733] bg-white/80 border border-[#E7D6C4] hover:bg-white hover:border-[#C4AB94] active:scale-[0.96] transition-all flex items-center justify-center cursor-pointer"
           >
@@ -137,7 +138,7 @@ export const PinLockScreen: React.FC = () => {
           </button>
           <button
             onClick={handleDelete}
-            disabled={checking}
+            disabled={checking || isSecurityLoading}
             aria-label="Backspace"
             className="h-12 rounded-full text-[#635B6B] bg-transparent hover:bg-white hover:text-[#2E2733] transition-colors flex items-center justify-center cursor-pointer"
           >

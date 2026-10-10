@@ -73,6 +73,7 @@ interface AppContextType extends ReturnType<typeof useAcademicData> {
 
   // Security Lock
   isLocked: boolean;
+  isSecurityLoading: boolean;
   lockApp: () => void;
   unlockApp: (pinInput: string) => Promise<boolean>;
   unlockWithBiometrics: () => Promise<boolean>;
@@ -187,6 +188,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // Lock State: Locked on start if PIN is enabled
   const [isLocked, setIsLocked] = useState<boolean>(() => settings.isPinEnabled);
+  const [isSecurityLoading, setIsSecurityLoading] = useState(false);
   const isLockedRef = useRef(isLocked);
   isLockedRef.current = isLocked;
   const lastActivityAt = useRef(Date.now());
@@ -286,6 +288,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     window.addEventListener('keydown', onActivity);
     window.addEventListener('touchstart', onActivity, { passive: true });
     window.addEventListener('mousemove', onActivity, { passive: true });
+    window.addEventListener('wheel', onActivity, { passive: true });
+    window.addEventListener('scroll', onActivity, { passive: true });
     return () => {
       clearTimer();
       document.removeEventListener('visibilitychange', onVisibilityChange);
@@ -293,6 +297,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       window.removeEventListener('keydown', onActivity);
       window.removeEventListener('touchstart', onActivity);
       window.removeEventListener('mousemove', onActivity);
+      window.removeEventListener('wheel', onActivity);
+      window.removeEventListener('scroll', onActivity);
     };
   }, [isLocked]);
 
@@ -300,8 +306,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     let active = true;
     if (!cloudUserId) {
       remotePinEnabled.current = null;
+      setIsSecurityLoading(false);
       return () => { active = false; };
     }
+    const requiresInitialSync = remotePinEnabled.current?.ownerId !== cloudUserId;
+    setIsSecurityLoading(requiresInitialSync);
     void initializeCloudAppLock(
       cloudUserId,
       settingsRef.current.pin,
@@ -311,12 +320,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const previous = remotePinEnabled.current;
       const changedFromDisabled = previous?.ownerId === cloudUserId
         ? previous.enabled === false && enabled
-        : !settingsRef.current.isPinEnabled && enabled;
+        : enabled;
       remotePinEnabled.current = { ownerId: cloudUserId, enabled };
       setSettings((current) => ({ ...current, isPinEnabled: enabled }));
       if (changedFromDisabled) setIsLocked(true);
+      setIsSecurityLoading(false);
     }).catch((cause: unknown) => {
       if (!active || currentCloudUserId.current !== cloudUserId) return;
+      setIsLocked(true);
+      setIsSecurityLoading(false);
       showToast(cause instanceof Error ? cause.message : 'Could not sync your shared app lock.');
     });
     return () => { active = false; };
@@ -695,6 +707,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         updateAppLockSettings,
         resetAllData,
         isLocked,
+        isSecurityLoading,
         lockApp,
         unlockApp,
         unlockWithBiometrics,
