@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Cloud, CloudOff, Lock, Plus } from 'lucide-react';
+import { Lock, Plus } from 'lucide-react';
 import { LOGO_URL } from '../../utils/brand';
 
 export const Header: React.FC = () => {
-  const { settings, lockApp, openAddModal, activeTab, academicUser, openCloudModal } = useApp();
+  const { settings, lockApp, openAddModal, activeTab } = useApp();
   const [logoFailed, setLogoFailed] = useState(false);
 
   return (
@@ -27,22 +27,6 @@ export const Header: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Cloud Sync Status Pill */}
-          <button
-            type="button"
-            onClick={openCloudModal}
-            aria-label={academicUser ? `Cloud connected as ${academicUser.email}` : 'Cloud disconnected. Click to sign in.'}
-            title={academicUser ? `Cloud connected as ${academicUser.email}` : 'Cloud disconnected. Click to sign in.'}
-            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[11px] sm:text-[12px] font-semibold border transition-all cursor-pointer ${
-              academicUser
-                ? 'bg-[#edf5ef] text-[#2f6049] border-[#cfe4d6] hover:bg-[#e4efe8]'
-                : 'bg-[#fdf4e7] text-[#8a6134] border-[#eed9b8] hover:bg-[#fbeeda]'
-            }`}
-          >
-            {academicUser ? <Cloud className="h-3.5 w-3.5 text-[#3f7a5f]" /> : <CloudOff className="h-3.5 w-3.5 text-[#b98a4e]" />}
-            <span className="hidden sm:inline">{academicUser ? 'Cloud Connected' : 'Connect Cloud'}</span>
-          </button>
-
           <button onClick={() => openAddModal(activeTab === 'university' ? 'university' : 'expense')} aria-label={activeTab === 'university' ? 'Record academic payment' : 'Add transaction'} className="group inline-flex items-center gap-1.5 rounded-full bg-[#8C7C91] px-3.5 py-2 text-[12px] sm:text-[13px] font-semibold tracking-[-0.01em] text-white shadow-[0_1px_0_rgba(255,255,255,0.14)_inset,0_4px_12px_rgba(74,62,82,0.18)] transition-all hover:bg-[#776877] active:scale-[0.98]">
             <Plus className="h-3.5 w-3.5 transition-transform group-active:rotate-90" />
             <span className="hidden sm:inline">{activeTab === 'university' ? 'Record payment' : 'New entry'}</span>
