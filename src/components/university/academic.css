@@ -265,6 +265,11 @@
 .academic-cloud-content form { display: flex; flex-direction: column; gap: 16px; }
 .academic-cloud-content .academic-import-consent { display: flex; align-items: flex-start; gap: 10px; font-size: 11px; line-height: 1.8; font-weight: 400; }
 .academic-import-consent input { margin-top: 4px; accent-color: #8c7c91; width: 15px; height: 15px; flex-shrink: 0; }
+.academic-cloud-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; padding: 4px; background: #ece5ef; border-radius: 11px; }
+.academic-cloud-tab { display: flex; align-items: center; justify-content: center; gap: 6px; border: 0; border-radius: 8px; padding: 9px 10px; background: transparent; color: #7b6a80; font-size: 11px; font-weight: 600; letter-spacing: -.1px; cursor: pointer; transition: background .16s, color .16s, box-shadow .16s; }
+.academic-cloud-tab:hover { color: #5f4f66; }
+.academic-cloud-tab.active { background: #fffaf7; color: #6b4f74; box-shadow: 0 1px 3px #00000014; }
+.academic-cloud-tab > svg { flex-shrink: 0; }
 
 @keyframes academic-enter { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes academic-dialog-enter { from { opacity: 0; transform: translateY(10px) scale(.99); } to { opacity: 1; transform: translateY(0) scale(1); } }

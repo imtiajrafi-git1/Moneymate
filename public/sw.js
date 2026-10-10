@@ -1,4 +1,4 @@
-const CACHE_NAME = 'moneymate-shell-v1';
+const CACHE_NAME = 'moneymate-shell-v2';
 const APP_SHELL = [
   './',
   './manifest.webmanifest',

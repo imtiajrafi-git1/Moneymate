@@ -31,8 +31,21 @@ browser developer tools or the device profile. Do not treat a local PIN as datab
    `NEXT_PUBLIC_SUPABASE_ANON_KEY` to the publishable/anon client key. The app also accepts the
    equivalent `VITE_` names. Never use a service-role/secret key.
 3. Enable Email Auth. Set the site URL and allowed redirect URLs to your deployed app origin.
-   The sign-in flow uses the standard email magic-link template (`{{ .ConfirmationURL }}`).
+   The email-link tab uses the standard magic-link template (`{{ .ConfirmationURL }}`).
 4. Restart the Vite dev server after setting environment values; rebuild when deploying.
+
+> **Deploying? These variables must exist at build time, not runtime.** Vite inlines
+> `import.meta.env` as literals, so `.env.local` (which is gitignored) never reaches your host.
+> Add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` to your host's environment
+> variables and **redeploy**. Without them the build now fails outright rather than shipping an
+> app that silently stores everything in localStorage. To confirm a deploy picked them up:
+>
+> ```sh
+> curl -s https://<your-domain> | grep -c ikwpsuldqzmybidepjry   # must print 1
+> ```
+>
+> Bump `CACHE_NAME` in `public/sw.js` whenever the bundle changes, or returning visitors keep
+> serving the cached shell.
 
 > **Auth config note.** This project currently has **Confirm email** turned *off*
 > (`mailer_autoconfirm = true`), because the project has no SMTP provider configured and
@@ -41,7 +54,8 @@ browser developer tools or the device profile. Do not treat a local PIN as datab
 > Before real use: configure SMTP (or Resend), then turn **Confirm email** back on so
 > unverified addresses cannot claim an account.
 5. Unlock MoneyMate, open University, then click the storage indicator above the page heading.
-   Request a sign-in link and open the email link. The PIN screen remains independent of cloud Auth.
+   Sign in with a password, or use the email-link tab. A new address becomes your account. The PIN
+   screen remains independent of cloud Auth.
 6. A newly signed-in cloud account starts with only its own records. Monthly and Extra Card
    changes are then saved to that account. To upload existing device records, reopen the cloud
    dialog, explicitly consent, and select **Back up device records**. Matching IDs are updated;
