@@ -42,10 +42,11 @@ test('payment edit/delete recalculates from the ledger, not cached totals', () =
 
 test('dashboard university total sums recorded payments across semesters', () => {
   const payments = [
-    payment('spring-payment', 30000, 'Registration Fee'),
+    payment('spring-payment', 70000, 'Registration Fee'),
     payment('fall-payment', 25000, 'Registration Fee', 'fall-2025'),
   ];
-  assert.equal(getUniversityTotal(payments), 55000);
+  assert.equal(getUniversityTotal(payments), 95000);
+  assert.equal(getUniversityTotal(payments.filter((record) => record.semesterId === semester.id)), 70000);
   assert.equal(getUniversityTotal(payments.slice(1)), 25000);
 });
 

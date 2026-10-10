@@ -1,66 +1,120 @@
 import React, { useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
+import { getAcademicPaidTotal } from '../../utils/academic';
 import { getUniversityTotal } from '../../utils/finance';
-import { formatCurrency } from '../../utils/formatters';
+import { formatCurrency, formatDateLabel } from '../../utils/formatters';
 
 export const UniversitySummaryCard: React.FC = () => {
-  const { universityPayments, expenses, settings, setActiveTab } = useApp();
+  const {
+    universityPayments, semesters, expenses, settings, setActiveTab,
+    academicLoading, academicError,
+  } = useApp();
   const totalUniPaid = useMemo(
     () => getUniversityTotal(universityPayments, expenses),
     [universityPayments, expenses]
   );
+  const semesterHistory = useMemo(() => {
+    const latestPaymentBySemester = new Map<string, string>();
+    for (const payment of universityPayments) {
+      const latest = latestPaymentBySemester.get(payment.semesterId);
+      if (!latest || payment.date > latest) latestPaymentBySemester.set(payment.semesterId, payment.date);
+    }
+    return [...latestPaymentBySemester.entries()]
+      .map(([semesterId, latestDate]) => ({
+        semesterId,
+        latestDate,
+        paid: getAcademicPaidTotal(universityPayments, semesterId),
+      }))
+      .sort((left, right) => right.latestDate.localeCompare(left.latestDate))
+      .slice(0, 3);
+  }, [universityPayments]);
   const symbol = settings?.currencySymbol ?? '৳';
 
   return (
-    <button
-      onClick={() => setActiveTab('university')}
-      aria-label="Open University payments"
-      className="group w-full text-left bg-gradient-to-br from-[#2D2436] via-[#211A28] to-[#17121C] rounded-[16px] xs:rounded-[18px] p-3 xs:p-4 relative overflow-hidden cursor-pointer shadow-md border border-white/5 transition-all hover:shadow-lg"
-    >
+    <section className="group w-full bg-gradient-to-br from-[#2D2436] via-[#211A28] to-[#17121C] rounded-[16px] xs:rounded-[18px] p-3 xs:p-4 relative overflow-hidden shadow-md border border-white/5">
       {/* Glow accents */}
       <div className="absolute top-0 right-0 -mt-10 -mr-10 h-36 w-36 bg-[#8C7C91]/20 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-0 left-0 -mb-10 -ml-10 h-28 w-28 bg-[#85A8A3]/10 rounded-full blur-3xl pointer-events-none" />
 
-      {/* Header */}
-      <div className="flex items-start justify-between gap-2 mb-2.5 xs:mb-3 relative">
-        <div className="min-w-0">
-          <div className="flex items-center gap-1.5">
-            <span className="h-1.5 w-1.5 xs:h-2 xs:w-2 rounded-full bg-[#85A8A3] shrink-0 animate-pulse shadow-[0_0_9px_rgba(133,168,163,0.7)]" />
-            <p className="font-sans text-[11px] xs:text-[12px] font-black uppercase tracking-[0.11em] text-[#9A8F9E] leading-none">
-              Academic
-            </p>
+      <button
+        type="button"
+        onClick={() => setActiveTab('university')}
+        aria-label="Open University payments"
+        className="w-full text-left relative cursor-pointer"
+      >
+        {/* Header */}
+        <div className="flex items-start justify-between gap-2 mb-2.5 xs:mb-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 xs:h-2 xs:w-2 rounded-full bg-[#85A8A3] shrink-0 animate-pulse shadow-[0_0_9px_rgba(133,168,163,0.7)]" />
+              <p className="font-sans text-[11px] xs:text-[12px] font-black uppercase tracking-[0.11em] text-[#9A8F9E] leading-none">
+                Academic
+              </p>
+            </div>
+            <h2 className="mt-1.5 font-sans text-[14px] xs:text-[17px] font-extrabold tracking-tight text-white leading-none">
+              University
+            </h2>
           </div>
-          <h2 className="mt-1.5 font-sans text-[14px] xs:text-[17px] font-extrabold tracking-tight text-white leading-none">
-            University
-          </h2>
+          <div className="shrink-0 rounded-full border border-white/10 bg-white/5 backdrop-blur-sm px-2.5 py-1 font-sans text-[10px] font-bold text-[#9A8F9E]">
+            Σ Total
+          </div>
         </div>
-        <div className="shrink-0 rounded-full border border-white/10 bg-white/5 backdrop-blur-sm px-2.5 py-1 font-sans text-[10px] font-bold text-[#9A8F9E]">
-          Σ Total
-        </div>
-      </div>
 
-      {/* Value block */}
-      <div className="rounded-[12px] xs:rounded-[14px] border border-white/10 bg-white/[0.04] px-3 py-3 xs:px-3.5 xs:py-3.5 relative">
-        <div className="flex items-baseline justify-between gap-3">
-          <span className="font-sans text-[10px] xs:text-[11px] font-bold uppercase tracking-[0.08em] text-[#9A8F9E]">
-            Total Paid
+        {/* Value block */}
+        <div className="rounded-[12px] xs:rounded-[14px] border border-white/10 bg-white/[0.04] px-3 py-3 xs:px-3.5 xs:py-3.5">
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="font-sans text-[10px] xs:text-[11px] font-bold uppercase tracking-[0.08em] text-[#9A8F9E]">
+              Total Paid
+            </span>
+            <span className="font-sans text-[19px] xs:text-[25px] font-black tracking-tight text-white leading-none">
+              {academicLoading ? 'Loading...' : academicError ? 'Unavailable' : formatCurrency(totalUniPaid, symbol)}
+            </span>
+          </div>
+        </div>
+
+        <div className="mt-2.5 flex items-center justify-between">
+          <span className="font-sans text-[10px] xs:text-[11px] font-bold text-[#9A8F9E]/70">
+            {academicLoading ? 'Loading payments...' : academicError
+              ? 'Could not load payments'
+              : universityPayments.length === 0
+                ? 'No records yet'
+                : `${universityPayments.length} payments · all semesters`}
           </span>
-          <span className="font-sans text-[19px] xs:text-[25px] font-black tracking-tight text-white leading-none">
-            {formatCurrency(totalUniPaid, symbol)}
+          <span className="font-sans text-[10px] xs:text-[11px] font-bold text-white opacity-70 group-hover:opacity-100 transition-opacity">
+            Open →
           </span>
         </div>
-      </div>
+      </button>
 
-      <div className="mt-2.5 flex items-center justify-between relative">
-        <span className="font-sans text-[10px] xs:text-[11px] font-bold text-[#9A8F9E]/70">
-          {universityPayments.length === 0
-            ? 'No records yet'
-            : `${universityPayments.length} payments · all semesters`}
-        </span>
-        <span className="font-sans text-[10px] xs:text-[11px] font-bold text-white opacity-70 group-hover:opacity-100 transition-opacity">
-          Open →
-        </span>
+      <div className="mt-3 border-t border-white/10 pt-3 relative" aria-label="Recent semester payments">
+        <h3 className="mb-2 font-sans text-[10px] font-bold uppercase tracking-[0.08em] text-[#9A8F9E]">
+          Semester History
+        </h3>
+        {academicLoading ? (
+          <p className="font-sans text-[11px] text-[#9A8F9E]/70">Loading payment history...</p>
+        ) : academicError ? (
+          <p className="font-sans text-[11px] text-[#D8C3B3]">Payment history is unavailable. Retry from University.</p>
+        ) : semesterHistory.length === 0 ? (
+          <p className="font-sans text-[11px] text-[#9A8F9E]/70">No semester payments found.</p>
+        ) : (
+          <ul className="space-y-2">
+            {semesterHistory.map((history) => {
+              const semesterName = semesters.find((semester) => semester.id === history.semesterId)?.name ?? 'Semester';
+              return (
+                <li key={history.semesterId} className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate font-sans text-[11px] font-semibold text-white">{semesterName}</p>
+                    <p className="truncate font-sans text-[10px] text-[#9A8F9E]/70">Latest payment · {formatDateLabel(history.latestDate)}</p>
+                  </div>
+                  <span className="shrink-0 font-sans text-[11px] font-bold text-[#C8DDD8]">
+                    {formatCurrency(history.paid, symbol)}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </div>
-    </button>
+    </section>
   );
 };
