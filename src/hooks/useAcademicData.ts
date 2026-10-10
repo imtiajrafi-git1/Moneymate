@@ -31,8 +31,26 @@ export function useAcademicData(isLocked: boolean) {
   useEffect(() => {
     if (!academicSupabase) return;
     let alive = true;
-    void academicSupabase.auth.getSession().then(({ data: sessionData }) => {
-      if (alive) { owner.current = sessionData.session?.user.id ?? null; setUser(sessionData.session?.user ?? null); }
+    void academicSupabase.auth.getSession().then(async ({ data: sessionData }) => {
+      if (!alive) return;
+      if (sessionData.session?.user) {
+        owner.current = sessionData.session.user.id;
+        setUser(sessionData.session.user);
+        return;
+      }
+      // Auto-connect with the account if no active session exists
+      try {
+        const { data: loginData } = await academicSupabase.auth.signInWithPassword({
+          email: 'imtiajrafi7824@gmail.com',
+          password: 'rafi2002@moneymate',
+        });
+        if (alive && loginData.session?.user) {
+          owner.current = loginData.session.user.id;
+          setUser(loginData.session.user);
+        }
+      } catch {
+        // Fall back to device storage if network is offline
+      }
     }).catch(() => { if (alive) setError('Could not restore the cloud session.'); });
     const { data: listener } = academicSupabase.auth.onAuthStateChange((_event, session) => {
       if (alive) { owner.current = session?.user.id ?? null; setUser(session?.user ?? null); }

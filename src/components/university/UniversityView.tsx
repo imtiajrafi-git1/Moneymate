@@ -54,12 +54,11 @@ export const UniversityView = () => {
   const {
     semesters, universityPayments, academicReceipts, settings, setActiveTab,
     academicSemesterId, setAcademicSemesterId, deleteUniversityPayment, deleteAcademicSemester,
-    academicUser, academicLoading, academicError, reloadAcademic, showToast,
+    academicUser, academicLoading, academicError, reloadAcademic, showToast, openCloudModal,
   } = useApp();
   const [semesterEditor, setSemesterEditor] = useState<Semester | 'new' | null>(null);
   const [paymentEditor, setPaymentEditor] = useState<UniversityPayment | 'new' | null>(null);
   const [viewReceipt, setViewReceipt] = useState<AcademicReceipt | null>(null);
-  const [cloudOpen, setCloudOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [receiptFilter, setReceiptFilter] = useState('all');
   const [latestFirst, setLatestFirst] = useState(true);
@@ -104,7 +103,7 @@ export const UniversityView = () => {
     <div className="academic-portal">
       <div className="academic-breadcrumb"><div><button type="button" onClick={() => setActiveTab('dashboard')}>Home</button><ChevronRight size={13} /><span>University</span></div>
         <button className={`academic-cloud-link${academicUser ? ' connected' : ' local'}`} type="button"
-          onClick={() => setCloudOpen(true)}
+          onClick={openCloudModal}
           aria-label={academicUser ? 'Cloud connected. Manage cloud sync.' : 'Saved on this device only. Tap to connect to cloud.'}>
           {academicUser ? <CloudCheck size={15} /> : <HardDrive size={15} />}
           <span>{academicUser ? 'Cloud connected' : 'Local only — tap to sync'}</span>
@@ -120,12 +119,12 @@ export const UniversityView = () => {
       {!academicUser && !academicLoading && <div className="academic-cloud-banner" role="status">
         <HardDrive size={16} />
         <div><strong>Saved on this device only.</strong> Sign in to store your semesters and receipts in your private cloud, so they survive a cleared browser and appear on every device you sign in on.</div>
-        <button type="button" className="academic-button secondary" onClick={() => setCloudOpen(true)}>Connect cloud</button>
+        <button type="button" className="academic-button secondary" onClick={openCloudModal}>Connect cloud</button>
       </div>}
 
       {academicError && <div className="academic-error academic-load-error" role="alert"><span>{academicError}</span><button className="academic-button secondary" type="button" onClick={reloadAcademic}>Retry</button></div>}
       {academicLoading ? <div className="academic-loading"><Loader2 size={28} className="animate-spin" /><p>Loading your private academic records...</p></div>
-        : !selected || !summary ? <div className="academic-empty-semesters"><GraduationCap size={42} /><h2>Your next semester starts here</h2><p>Add a semester, set the fees, and keep every payment receipt in one place.</p><button type="button" className="academic-button primary" disabled={!ready} onClick={() => setSemesterEditor('new')}><Plus size={16} />Add your first semester</button>{academicUser && <button className="academic-text-button" type="button" onClick={() => setCloudOpen(true)}>Back up existing device records instead <ArrowRight size={14} /></button>}</div>
+        : !selected || !summary ? <div className="academic-empty-semesters"><GraduationCap size={42} /><h2>Your next semester starts here</h2><p>Add a semester, set the fees, and keep every payment receipt in one place.</p><button type="button" className="academic-button primary" disabled={!ready} onClick={() => setSemesterEditor('new')}><Plus size={16} />Add your first semester</button>{academicUser && <button className="academic-text-button" type="button" onClick={openCloudModal}>Back up existing device records instead <ArrowRight size={14} /></button>}</div>
           : <>
             <section className="academic-semesters-section" aria-labelledby="academic-semesters-title">
               <div className="academic-semesters-heading">
@@ -211,7 +210,6 @@ export const UniversityView = () => {
       {semesterEditor && <AcademicSemesterModal semester={semesterEditor === 'new' ? undefined : semesterEditor} onClose={() => setSemesterEditor(null)} onSaved={(semester) => chooseSemester(semester.id)} />}
       {paymentEditor && <AcademicPaymentModal payment={paymentEditor === 'new' ? undefined : paymentEditor} onClose={() => setPaymentEditor(null)} />}
       {viewReceipt && <ReceiptViewer receipt={viewReceipt} onClose={() => setViewReceipt(null)} />}
-      {cloudOpen && <AcademicCloudModal onClose={() => setCloudOpen(false)} />}
       {deleteTarget && (() => {
         const targetPayments = deleteTarget.type === 'semester' ? universityPayments.filter((payment) => payment.semesterId === deleteTarget.id) : [];
         const targetReceipts = deleteTarget.type === 'semester' ? academicReceipts.filter((receipt) => targetPayments.some((payment) => payment.id === receipt.paymentId)) : [];

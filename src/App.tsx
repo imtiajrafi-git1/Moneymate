@@ -13,9 +13,10 @@ import { SpecialFundView } from './components/special/SpecialFundView';
 import { MonthlyReportView } from './components/reports/MonthlyReportView';
 import { YearlyReportView } from './components/reports/YearlyReportView';
 import { SettingsView } from './components/settings/SettingsView';
+import { AcademicCloudModal } from './components/university/AcademicCloudModal';
 
 const MainContent: React.FC = () => {
-  const { activeTab, isLocked, isSecurityLoading } = useApp();
+  const { activeTab, isLocked, isSecurityLoading, isCloudModalOpen, closeCloudModal } = useApp();
 
   return (
     <div className="mm-app min-h-screen text-[#2E2733] flex flex-col font-sans pb-24">
@@ -40,6 +41,7 @@ const MainContent: React.FC = () => {
           <BottomNav />
           <MoreMenu />
           <QuickAddModal />
+          {isCloudModalOpen && <AcademicCloudModal onClose={closeCloudModal} />}
           <Toast />
         </>
       )}

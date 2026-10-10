@@ -36,7 +36,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   isBiometricEnabled: true,
   currencySymbol: '৳',
   userName: 'Imtiaj Rafi',
-  userEmail: 'imtiaj@student.edu.bd',
+  userEmail: 'imtiajrafi7824@gmail.com',
   autoLockOnBackground: false,
 };
 

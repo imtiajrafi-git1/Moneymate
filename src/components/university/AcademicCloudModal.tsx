@@ -44,6 +44,8 @@ export function AcademicCloudModal({ onClose }: { onClose: () => void }) {
         }
       }
       setPassword('');
+      showToast('Cloud connected successfully!');
+      onClose();
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not sign in to the cloud.'); }
     finally { setBusy(false); }
   };
@@ -81,7 +83,7 @@ export function AcademicCloudModal({ onClose }: { onClose: () => void }) {
     setBusy(false);
   };
 
-  return <AcademicDialog title="Private academic cloud" subtitle="Back up fee records and receipts with Supabase." onClose={onClose} busy={busy}>
+  return <AcademicDialog title="Supabase Cloud Sync" subtitle="Sync transactions, extra cards and academic records with Supabase." onClose={onClose} busy={busy}>
     <div className="academic-form academic-cloud-content">
       <div className="academic-cloud-symbol">{academicUser ? <Cloud size={28} /> : <HardDrive size={28} />}</div>
       {!academicCloudConfigured ? <>
@@ -96,6 +98,13 @@ export function AcademicCloudModal({ onClose }: { onClose: () => void }) {
         <button type="button" className="academic-button primary" onClick={onClose}>Continue on this device</button>
       </> : academicUser ? <>
         <h3>Connected securely</h3><p>{academicUser.email}</p>
+        <div style={{ background: '#f5f0f7', borderRadius: '8px', padding: '10px 12px', margin: '10px 0', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', border: '1px solid #e2d9e6' }}>
+          <div style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <span style={{ fontWeight: 650, color: '#534959', display: 'block' }}>Supabase User ID (UID):</span>
+            <code style={{ fontSize: '10px', color: '#7b6a80' }}>{academicUser.id}</code>
+          </div>
+          <button type="button" className="academic-button secondary" style={{ minHeight: '28px', padding: '4px 9px', fontSize: '10px', flexShrink: 0 }} onClick={() => { void navigator.clipboard.writeText(academicUser.id); showToast('User UID copied to clipboard!'); }}>Copy UID</button>
+        </div>
         <p>Your cloud records belong only to this account. Device records stay separate until you explicitly approve a backup.</p>
         <label className="academic-import-consent"><input type="checkbox" checked={confirmImport} onChange={(event) => setConfirmImport(event.target.checked)} />Back up this device's Monthly, Extra Card, academic and receipt records to my account. Matching IDs will be updated; other cloud records are kept.</label>
         <button className="academic-button primary" type="button" disabled={busy || academicLoading || financeCloudLoading || !confirmImport} onClick={() => void importRecords()}>{busy ? <Loader2 size={16} className="animate-spin" /> : <UploadCloud size={16} />}Back up device records</button>

@@ -89,6 +89,11 @@ interface AppContextType extends ReturnType<typeof useAcademicData> {
   toast: { id: number; message: string } | null;
   showToast: (message: string) => void;
   dismissToast: () => void;
+
+  // Cloud Sign-In & Sync Modal
+  isCloudModalOpen: boolean;
+  openCloudModal: () => void;
+  closeCloudModal: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -213,6 +218,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Quick Add Modal
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [initialAddType, setInitialAddType] = useState<'expense' | 'income' | 'university' | 'semester'>('expense');
+
+  // Cloud Sign-In & Sync Modal
+  const [isCloudModalOpen, setIsCloudModalOpen] = useState(false);
+  const openCloudModal = () => setIsCloudModalOpen(true);
+  const closeCloudModal = () => setIsCloudModalOpen(false);
 
   // Save confirmation toast (auto-dismisses)
   const [toast, setToast] = useState<{ id: number; message: string } | null>(null);
@@ -563,12 +573,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
     // If marked as a university expense, route it to the university store instead.
     if (expenseData.isUniversity || expenseData.category === 'University') {
+      const activeSem = semesters.find((s) => s.status === 'Active') || semesters[0];
       const uniData = expenseData as unknown as Partial<UniversityPayment>;
       const newUniPay: UniversityPayment = {
         id,
         title: expenseData.title,
         amount: expenseData.amount,
-        semesterId: expenseData.semesterId || 'sem-3',
+        semesterId: expenseData.semesterId || activeSem?.id || 'sem-3',
         feeType: uniData.feeType ?? 'Other',
         date: expenseData.date,
         month: expenseData.month,
@@ -753,6 +764,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         toast,
         showToast,
         dismissToast,
+        isCloudModalOpen,
+        openCloudModal,
+        closeCloudModal,
       }}
     >
       {children}
