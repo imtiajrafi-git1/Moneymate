@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowDownUp, ArrowRight, BookOpen, Bus, Check, CheckCircle2, ChevronRight,
-  Cloud, FileImage, FileText, GraduationCap, HardDrive, Layers, Loader2, LockKeyhole,
+  CloudCheck, FileImage, FileText, GraduationCap, HardDrive, Layers, Loader2, LockKeyhole,
   Paperclip, Pencil, Plus, ReceiptText, Search, ShieldCheck, Trash2,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
@@ -103,13 +103,25 @@ export const UniversityView = () => {
   return (
     <div className="academic-portal">
       <div className="academic-breadcrumb"><div><button type="button" onClick={() => setActiveTab('dashboard')}>Home</button><ChevronRight size={13} /><span>University</span></div>
-        <button className="academic-cloud-link" type="button" onClick={() => setCloudOpen(true)}>{academicUser ? <Cloud size={15} /> : <HardDrive size={15} />}{academicUser ? 'Private cloud' : 'Saved on this device'}<ChevronRight size={13} /></button>
+        <button className={`academic-cloud-link${academicUser ? ' connected' : ' local'}`} type="button"
+          onClick={() => setCloudOpen(true)}
+          aria-label={academicUser ? 'Cloud connected. Manage cloud sync.' : 'Saved on this device only. Tap to connect to cloud.'}>
+          {academicUser ? <CloudCheck size={15} /> : <HardDrive size={15} />}
+          <span>{academicUser ? 'Cloud connected' : 'Local only — tap to sync'}</span>
+          <ChevronRight size={13} />
+        </button>
       </div>
       <header className="academic-page-header">
         <div><div className="academic-eyebrow"><GraduationCap size={17} />YOUR ACADEMIC LEDGER</div><h1>Academic Portal<span>.</span></h1><p>Every semester. Every payment. Everything accounted for.</p></div>
         <div className="academic-page-actions"><button type="button" className="academic-button secondary" disabled={!ready} onClick={() => setSemesterEditor('new')}><Plus size={16} />Add semester</button>
           <button type="button" className="academic-button primary" disabled={!selected || !ready} onClick={() => setPaymentEditor('new')}><Plus size={16} />Record payment</button></div>
       </header>
+
+      {!academicUser && !academicLoading && <div className="academic-cloud-banner" role="status">
+        <HardDrive size={16} />
+        <div><strong>Saved on this device only.</strong> Sign in to store your semesters and receipts in your private cloud, so they survive a cleared browser and appear on every device you sign in on.</div>
+        <button type="button" className="academic-button secondary" onClick={() => setCloudOpen(true)}>Connect cloud</button>
+      </div>}
 
       {academicError && <div className="academic-error academic-load-error" role="alert"><span>{academicError}</span><button className="academic-button secondary" type="button" onClick={reloadAcademic}>Retry</button></div>}
       {academicLoading ? <div className="academic-loading"><Loader2 size={28} className="animate-spin" /><p>Loading your private academic records...</p></div>
