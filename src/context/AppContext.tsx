@@ -11,6 +11,7 @@ import {
 } from '../types';
 import { Storage } from '../utils/storage';
 import { useAcademicData } from '../hooks/useAcademicData';
+import { academicSupabase } from '../services/academicCloud';
 import { backupLocalFinance, FinanceSnapshot, loadFinanceCloud, syncFinanceCloud } from '../services/financeCloud';
 import { initializeCloudAppLock, saveCloudAppLock, verifyCloudAppPin } from '../services/appLockCloud';
 
@@ -235,6 +236,39 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, []);
 
   useEffect(() => {
+    if (!cloudUserId || isLocked || !academicSupabase) return;
+    const client = academicSupabase;
+    let active = true;
+    let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+    const refresh = () => {
+      if (refreshTimer) clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(() => {
+        void financeQueueRef.current.then(() => {
+          if (active && currentCloudUserId.current === cloudUserId && !isLockedRef.current) {
+            setFinanceRevision((value) => value + 1);
+          }
+        });
+      }, 100);
+    };
+    const channel = client
+      .channel(`finance-records:${cloudUserId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'money_incomes', filter: `user_id=eq.${cloudUserId}` }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'money_expenses', filter: `user_id=eq.${cloudUserId}` }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'special_wallets', filter: `user_id=eq.${cloudUserId}` }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'special_fund_entries', filter: `user_id=eq.${cloudUserId}` }, refresh)
+      .subscribe((status, cause) => {
+        if (active && (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT')) {
+          console.error('Finance Realtime subscription failed:', cause ?? status);
+        }
+      });
+    return () => {
+      active = false;
+      if (refreshTimer) clearTimeout(refreshTimer);
+      void client.removeChannel(channel);
+    };
+  }, [cloudUserId, isLocked]);
+
+  useEffect(() => {
     const lockAfterMs = 180_000;
     const clearTimer = () => {
       if (inactivityTimer.current !== null) {
@@ -417,6 +451,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (currentCloudUserId.current !== cloudUserId) return;
       financeSnapshotRef.current = { ownerId: cloudUserId, snapshot, signature };
       setFinanceCloudError('');
+      setFinanceRevision((value) => value + 1);
     }).catch((cause: unknown) => {
       if (currentCloudUserId.current !== cloudUserId) return;
       const message = cause instanceof Error ? cause.message : 'Could not save cloud financial records.';

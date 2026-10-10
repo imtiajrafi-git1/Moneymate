@@ -24,13 +24,22 @@ browser developer tools or the device profile. Do not treat a local PIN as datab
 1. Create a Supabase project. In the SQL Editor, execute these migrations in order:
    `supabase/migrations/202608200001_academic_tracker.sql`, then
    `supabase/migrations/202610090001_finance_tracker.sql`, then
-   `supabase/migrations/202610100001_synced_app_lock.sql`.
+   `supabase/migrations/202610100001_synced_app_lock.sql`, then
+   `supabase/migrations/202610110001_realtime_sync.sql`, then
+   `supabase/migrations/202610110002_drop_legacy_tables.sql`.
 2. Copy `.env.example` to `.env.local`. Set `NEXT_PUBLIC_SUPABASE_URL` to the project URL and
    `NEXT_PUBLIC_SUPABASE_ANON_KEY` to the publishable/anon client key. The app also accepts the
    equivalent `VITE_` names. Never use a service-role/secret key.
 3. Enable Email Auth. Set the site URL and allowed redirect URLs to your deployed app origin.
    The sign-in flow uses the standard email magic-link template (`{{ .ConfirmationURL }}`).
 4. Restart the Vite dev server after setting environment values; rebuild when deploying.
+
+> **Auth config note.** This project currently has **Confirm email** turned *off*
+> (`mailer_autoconfirm = true`), because the project has no SMTP provider configured and
+> Supabase's built-in mailer hits `over_email_send_rate_limit_exceeded`, which makes every
+> sign-up fail outright. That means any address can be used without proving ownership.
+> Before real use: configure SMTP (or Resend), then turn **Confirm email** back on so
+> unverified addresses cannot claim an account.
 5. Unlock MoneyMate, open University, then click the storage indicator above the page heading.
    Request a sign-in link and open the email link. The PIN screen remains independent of cloud Auth.
 6. A newly signed-in cloud account starts with only its own records. Monthly and Extra Card
@@ -38,12 +47,19 @@ browser developer tools or the device profile. Do not treat a local PIN as datab
    dialog, explicitly consent, and select **Back up device records**. Matching IDs are updated;
    this is a merge, not an automatic destructive sync.
 7. Sign in with the same Supabase account on each device. Cloud records load when the app opens
-   and refresh when it returns to the foreground; records entered while signed out remain local
-   until explicitly backed up.
+   and refresh after a successful save, when another signed-in device changes a record, and when
+   the app returns to the foreground. Records entered while signed out remain local until
+   explicitly backed up.
 8. The first device to initialize app lock for an account seeds its current PIN. After that, a
    PIN change in Settings is saved as a bcrypt hash and is used by every device signed in to the
    same account. The PIN itself is never fetched from Supabase. PIN verification requires an
    internet connection and pauses after five consecutive incorrect attempts for five minutes.
+
+The Realtime migration adds only the app's academic, income, expense and Extra Card tables to
+the `supabase_realtime` publication. Existing owner-only row-level security remains in force;
+do not add public read/write policies or disable RLS to make device sync work. Realtime changes
+are filtered to the signed-in user's ID, and foreground refresh remains a fallback if a live
+subscription is temporarily unavailable.
 
 Local device records are kept when cloud is connected. Cloud reads are not written into the
 localStorage keys, so signing out restores the device ledger rather than another account's data.
@@ -72,9 +88,17 @@ keeps the current session unlocked.
 | `special_fund_entries` | Deposits and spending linked to an Extra Card |
 
 Composite foreign keys include `user_id`, preventing references to another user's semesters
-or payments. All four tables use owner-only SELECT, INSERT, UPDATE and DELETE policies.
-Anonymous roles have no table or RPC grants. Save RPCs are `SECURITY INVOKER`; they do not
-bypass RLS. Semester fees and payment/receipt metadata are saved transactionally.
+or payments. Academic and finance tables use owner-only SELECT, INSERT, UPDATE and DELETE
+policies. Anonymous roles have no table or RPC grants. Save RPCs are `SECURITY INVOKER`; they do
+not bypass RLS. Semester fees and payment/receipt metadata are saved transactionally.
+
+`202610110002_drop_legacy_tables.sql` removes the unused `semesters`, `semester_payments`,
+`transactions` and `wallets` tables left over from the first tracker iteration. They predate the
+owner-only hardening above, so they still carried blanket `anon` grants; they held no rows and
+had no policies. Drop them before relying on the claim that `anon` has no grants anywhere.
+
+`app_lock_settings` and `app_lock_attempts` have no grants for any role at all. They are reached
+only through the three `SECURITY DEFINER` app-lock RPCs, which read `auth.uid()` themselves.
 
 Receipt paths are `{user_id}/{semester_id}/{payment_id}/{random_receipt_id}.{extension}`.
 Storage policies require the first path component to equal `auth.uid()`. Existing file paths

@@ -74,6 +74,36 @@ export function useAcademicData(isLocked: boolean) {
     return () => document.removeEventListener('visibilitychange', refreshWhenVisible);
   }, []);
 
+  useEffect(() => {
+    if (!user || isLocked || !academicSupabase) return;
+    const client = academicSupabase;
+    let alive = true;
+    let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+    const refresh = () => {
+      if (!alive || locked.current || busy.current) return;
+      if (refreshTimer) clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(() => {
+        if (alive && !locked.current && !busy.current) setRevision((value) => value + 1);
+      }, 100);
+    };
+    const channel = client
+      .channel(`academic-records:${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'academic_semesters', filter: `user_id=eq.${user.id}` }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'academic_semester_fees', filter: `user_id=eq.${user.id}` }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'academic_payments', filter: `user_id=eq.${user.id}` }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'academic_receipts', filter: `user_id=eq.${user.id}` }, refresh)
+      .subscribe((status, cause) => {
+        if (alive && (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT')) {
+          console.error('Academic Realtime subscription failed:', cause ?? status);
+        }
+      });
+    return () => {
+      alive = false;
+      if (refreshTimer) clearTimeout(refreshTimer);
+      void client.removeChannel(channel);
+    };
+  }, [user?.id, isLocked]);
+
   const operation = useCallback(async <T,>(task: (ownerId: string | null) => Promise<T>): Promise<T> => {
     if (locked.current) throw new Error('Unlock the app before changing academic records.');
     if (loading || (user && (error || dataOwner !== user.id))) throw new Error('Cloud records are not ready. Retry loading before saving.');
@@ -102,6 +132,7 @@ export function useAcademicData(isLocked: boolean) {
     const snapshot = current.current;
     commit({ ...snapshot, semesters: snapshot.semesters.some((item) => item.id === semester.id)
       ? snapshot.semesters.map((item) => item.id === semester.id ? semester : item) : [...snapshot.semesters, semester] }, ownerId);
+    if (ownerId) setRevision((value) => value + 1);
     return semester;
   });
 
@@ -148,6 +179,7 @@ export function useAcademicData(isLocked: boolean) {
           ? snapshot.payments.map((item) => item.id === id ? payment : item) : [payment, ...snapshot.payments],
         receipts: [...snapshot.receipts.filter((receipt) => receipt.paymentId !== id), ...retained, ...additions.map((addition) => addition.receipt)],
       }, ownerId);
+      if (ownerId) setRevision((value) => value + 1);
     } catch (cause) {
       if (ownerId) await removeCloudFiles(ownerId, uploaded).catch(() => undefined);
       else if (additions.length) await deviceReceipts.removeMany(additions.map((addition) => addition.receipt.id)).catch(() => undefined);
@@ -166,6 +198,7 @@ export function useAcademicData(isLocked: boolean) {
     if (ownerId) await deleteCloudRecord(ownerId, 'academic_payments', id);
     const removed = snapshot.receipts.filter((receipt) => receipt.paymentId === id);
     commit({ ...snapshot, payments: snapshot.payments.filter((payment) => payment.id !== id), receipts: snapshot.receipts.filter((receipt) => receipt.paymentId !== id) }, ownerId);
+    if (ownerId) setRevision((value) => value + 1);
     if (ownerId) await removeCloudFiles(ownerId, removed).catch(() => setError('Record deleted. Some receipt files need cloud storage cleanup.'));
     else if (removed.length) await deviceReceipts.removeMany(removed.map((receipt) => receipt.id)).catch(() => undefined);
   });
@@ -194,6 +227,7 @@ export function useAcademicData(isLocked: boolean) {
       payments: snapshot.payments.filter((payment) => !semesterPaymentIds.has(payment.id)),
       receipts: snapshot.receipts.filter((receipt) => !semesterPaymentIds.has(receipt.paymentId)),
     }, ownerId);
+    if (ownerId) setRevision((value) => value + 1);
   });
 
   const readReceipt = async (receipt: AcademicReceipt): Promise<Blob> => {
