@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Lock, Delete, ShieldAlert } from 'lucide-react';
 import { LOGO_URL } from '../../utils/brand';
@@ -6,34 +6,46 @@ import { LOGO_URL } from '../../utils/brand';
 export const PinLockScreen: React.FC = () => {
   const { isLocked, unlockApp } = useApp();
   const [pin, setPin] = useState('');
-  const [error, setError] = useState(false);
+  const [error, setError] = useState('');
+  const [checking, setChecking] = useState(false);
+  const checkingRef = useRef(false);
   const [logoFailed, setLogoFailed] = useState(false);
 
   if (!isLocked) return null;
 
-  const handleKeyPress = (num: string) => {
-    if (pin.length >= 4) return;
+  const handleKeyPress = async (num: string) => {
+    if (pin.length >= 4 || checkingRef.current) return;
     const newPin = pin + num;
     setPin(newPin);
-    setError(false);
+    setError('');
 
     if (newPin.length === 4) {
-      const success = unlockApp(newPin);
-      if (!success) {
-        setError(true);
-        setTimeout(() => setPin(''), 500);
+      checkingRef.current = true;
+      setChecking(true);
+      try {
+        const success = await unlockApp(newPin);
+        if (!success) {
+          setError('Incorrect PIN. Try again.');
+          setTimeout(() => setPin(''), 500);
+        }
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : 'Could not verify PIN. Check your connection.');
+        setTimeout(() => setPin(''), 800);
+      } finally {
+        checkingRef.current = false;
+        setChecking(false);
       }
     }
   };
 
   const handleDelete = () => {
     setPin((prev) => prev.slice(0, -1));
-    setError(false);
+    setError('');
   };
 
   const handleClear = () => {
     setPin('');
-    setError(false);
+    setError('');
   };
 
   return (
@@ -90,7 +102,7 @@ export const PinLockScreen: React.FC = () => {
         {error && (
           <div className="flex items-center justify-center gap-1.5 text-[#7A4A44] font-sans text-[11px] font-semibold mb-4 bg-[#F3E1DC] px-3 py-1.5 rounded-full border border-[#E4C4BC]">
             <ShieldAlert className="h-3.5 w-3.5" />
-            <span>Incorrect PIN. Try again.</span>
+            <span>{error}</span>
           </div>
         )}
 
@@ -99,7 +111,8 @@ export const PinLockScreen: React.FC = () => {
           {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
             <button
               key={digit}
-              onClick={() => handleKeyPress(digit)}
+              onClick={() => void handleKeyPress(digit)}
+              disabled={checking}
               aria-label={`Digit ${digit}`}
               className="h-12 rounded-full font-sans text-[17px] font-semibold text-[#2E2733] bg-white/80 border border-[#E7D6C4] hover:bg-white hover:border-[#C4AB94] active:scale-[0.96] transition-all flex items-center justify-center cursor-pointer"
             >
@@ -108,13 +121,15 @@ export const PinLockScreen: React.FC = () => {
           ))}
           <button
             onClick={handleClear}
+            disabled={checking}
             aria-label="Clear PIN input"
             className="h-12 rounded-full font-sans text-[11px] font-semibold text-[#635B6B] bg-transparent hover:bg-white hover:text-[#2E2733] transition-colors flex items-center justify-center cursor-pointer"
           >
             Clear
           </button>
           <button
-            onClick={() => handleKeyPress('0')}
+            onClick={() => void handleKeyPress('0')}
+            disabled={checking}
             aria-label="Digit 0"
             className="h-12 rounded-full font-sans text-[17px] font-semibold text-[#2E2733] bg-white/80 border border-[#E7D6C4] hover:bg-white hover:border-[#C4AB94] active:scale-[0.96] transition-all flex items-center justify-center cursor-pointer"
           >
@@ -122,6 +137,7 @@ export const PinLockScreen: React.FC = () => {
           </button>
           <button
             onClick={handleDelete}
+            disabled={checking}
             aria-label="Backspace"
             className="h-12 rounded-full text-[#635B6B] bg-transparent hover:bg-white hover:text-[#2E2733] transition-colors flex items-center justify-center cursor-pointer"
           >

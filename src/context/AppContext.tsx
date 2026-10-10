@@ -12,6 +12,7 @@ import {
 import { Storage } from '../utils/storage';
 import { useAcademicData } from '../hooks/useAcademicData';
 import { backupLocalFinance, FinanceSnapshot, loadFinanceCloud, syncFinanceCloud } from '../services/financeCloud';
+import { initializeCloudAppLock, saveCloudAppLock, verifyCloudAppPin } from '../services/appLockCloud';
 
 interface AppContextType extends ReturnType<typeof useAcademicData> {
   // Navigation
@@ -67,12 +68,13 @@ interface AppContextType extends ReturnType<typeof useAcademicData> {
 
   // Settings Actions
   updateSettings: (newSettings: Partial<AppSettings>) => void;
+  updateAppLockSettings: (pin: string | null, enabled: boolean) => Promise<void>;
   resetAllData: () => void;
 
   // Security Lock
   isLocked: boolean;
   lockApp: () => void;
-  unlockApp: (pinInput: string) => boolean;
+  unlockApp: (pinInput: string) => Promise<boolean>;
   unlockWithBiometrics: () => Promise<boolean>;
 
   // Quick Add Modal State
@@ -143,6 +145,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [incomes, setIncomes] = useState<Income[]>(() => Storage.getIncomes());
   const [expenses, setExpenses] = useState<Expense[]>(migrated.expenses);
   const [settings, setSettings] = useState<AppSettings>(() => Storage.getSettings());
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
   /*
    * Extra wallets: own state + own storage keys.
    * Never merged with incomes / expenses / universityPayments.
@@ -183,12 +187,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // Lock State: Locked on start if PIN is enabled
   const [isLocked, setIsLocked] = useState<boolean>(() => settings.isPinEnabled);
+  const isLockedRef = useRef(isLocked);
+  isLockedRef.current = isLocked;
+  const lastActivityAt = useRef(Date.now());
+  const awaySince = useRef<number | null>(null);
+  const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const academic = useAcademicData(isLocked);
   const cloudUserId = academic.academicUser?.id;
   const { semesters, universityPayments, deleteUniversityPayment } = academic;
   const [financeOwner, setFinanceOwner] = useState<string | null>(null);
   const [financeCloudLoading, setFinanceCloudLoading] = useState(false);
   const [financeCloudError, setFinanceCloudError] = useState('');
+  const [financeRevision, setFinanceRevision] = useState(0);
+  const [securityRevision, setSecurityRevision] = useState(0);
+  const remotePinEnabled = useRef<{ ownerId: string; enabled: boolean } | null>(null);
   const financeSnapshotRef = useRef<{ ownerId: string; snapshot: FinanceSnapshot; signature: string } | null>(null);
   const financeQueueRef = useRef<Promise<void>>(Promise.resolve());
   const currentCloudUserId = useRef(cloudUserId);
@@ -210,9 +222,113 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, [toast]);
 
   useEffect(() => {
+    const refreshWhenVisible = () => {
+      if (!document.hidden) {
+        setFinanceRevision((value) => value + 1);
+        setSecurityRevision((value) => value + 1);
+      }
+    };
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    return () => document.removeEventListener('visibilitychange', refreshWhenVisible);
+  }, []);
+
+  useEffect(() => {
+    const lockAfterMs = 180_000;
+    const clearTimer = () => {
+      if (inactivityTimer.current !== null) {
+        clearTimeout(inactivityTimer.current);
+        inactivityTimer.current = null;
+      }
+    };
+    const scheduleLock = () => {
+      clearTimer();
+      if (isLockedRef.current || document.visibilityState !== 'visible') return;
+      const remaining = lockAfterMs - (Date.now() - lastActivityAt.current);
+      if (remaining <= 0) {
+        setIsLocked(true);
+        return;
+      }
+      inactivityTimer.current = setTimeout(() => {
+        if (document.visibilityState === 'visible' && Date.now() - lastActivityAt.current >= lockAfterMs) {
+          setIsLocked(true);
+        } else {
+          scheduleLock();
+        }
+      }, remaining);
+    };
+    const onActivity = () => {
+      if (isLockedRef.current || document.visibilityState !== 'visible') return;
+      lastActivityAt.current = Date.now();
+      scheduleLock();
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        awaySince.current = Date.now();
+        clearTimer();
+        return;
+      }
+      const awayDuration = awaySince.current === null ? 0 : Date.now() - awaySince.current;
+      awaySince.current = null;
+      if (!isLockedRef.current && awayDuration >= lockAfterMs) {
+        setIsLocked(true);
+        return;
+      }
+      lastActivityAt.current = Date.now();
+      scheduleLock();
+    };
+    if (isLocked) clearTimer();
+    else {
+      lastActivityAt.current = Date.now();
+      scheduleLock();
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('pointerdown', onActivity, { passive: true });
+    window.addEventListener('keydown', onActivity);
+    window.addEventListener('touchstart', onActivity, { passive: true });
+    window.addEventListener('mousemove', onActivity, { passive: true });
+    return () => {
+      clearTimer();
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('pointerdown', onActivity);
+      window.removeEventListener('keydown', onActivity);
+      window.removeEventListener('touchstart', onActivity);
+      window.removeEventListener('mousemove', onActivity);
+    };
+  }, [isLocked]);
+
+  useEffect(() => {
+    let active = true;
+    if (!cloudUserId) {
+      remotePinEnabled.current = null;
+      return () => { active = false; };
+    }
+    void initializeCloudAppLock(
+      cloudUserId,
+      settingsRef.current.pin,
+      settingsRef.current.isPinEnabled,
+    ).then((enabled) => {
+      if (!active || currentCloudUserId.current !== cloudUserId) return;
+      const previous = remotePinEnabled.current;
+      const changedFromDisabled = previous?.ownerId === cloudUserId
+        ? previous.enabled === false && enabled
+        : !settingsRef.current.isPinEnabled && enabled;
+      remotePinEnabled.current = { ownerId: cloudUserId, enabled };
+      setSettings((current) => ({ ...current, isPinEnabled: enabled }));
+      if (changedFromDisabled) setIsLocked(true);
+    }).catch((cause: unknown) => {
+      if (!active || currentCloudUserId.current !== cloudUserId) return;
+      showToast(cause instanceof Error ? cause.message : 'Could not sync your shared app lock.');
+    });
+    return () => { active = false; };
+  }, [cloudUserId, securityRevision]);
+
+  useEffect(() => {
     if (isLocked) return;
     let active = true;
-    financeSnapshotRef.current = null;
+    const hasCurrentSnapshot = Boolean(
+      cloudUserId && financeSnapshotRef.current?.ownerId === cloudUserId
+    );
+    if (!hasCurrentSnapshot) financeSnapshotRef.current = null;
     setFinanceCloudError('');
     if (!cloudUserId) {
       setFinanceCloudLoading(false);
@@ -224,12 +340,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return () => { active = false; };
     }
 
-    setFinanceOwner(null);
     setFinanceCloudLoading(true);
-    setIncomes([]);
-    setExpenses([]);
-    setSpecialWallets([]);
-    setSpecialFund([]);
+    if (!hasCurrentSnapshot) {
+      setFinanceOwner(null);
+      setIncomes([]);
+      setExpenses([]);
+      setSpecialWallets([]);
+      setSpecialFund([]);
+    }
     void loadFinanceCloud(cloudUserId).then((snapshot) => {
       if (!active) return;
       financeSnapshotRef.current = {
@@ -251,7 +369,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (active) setFinanceCloudLoading(false);
     });
     return () => { active = false; };
-  }, [cloudUserId, isLocked]);
+  }, [cloudUserId, isLocked, financeRevision]);
 
   useEffect(() => {
     if (!cloudUserId && financeOwner === null) Storage.saveIncomes(incomes);
@@ -296,13 +414,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, [incomes, expenses, specialWallets, specialFund, cloudUserId, isLocked, financeCloudLoading, financeCloudError, financeOwner]);
 
   const financeReady = !financeCloudLoading
+    && !financeCloudError
     && financeOwner === (cloudUserId ?? null);
   const ensureFinanceReady = () => {
     if (!financeReady) {
       showToast(financeCloudError || 'Your cloud records are loading. Please wait before making changes.');
       return false;
     }
-    if (financeCloudError) setFinanceCloudError('');
     return true;
   };
 
@@ -332,17 +450,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // Lock actions
   const lockApp = () => {
-    if (settings.isPinEnabled) {
-      setIsLocked(true);
-    }
+    setIsLocked(true);
   };
 
-  const unlockApp = (pinInput: string): boolean => {
-    if (pinInput === settings.pin) {
-      setIsLocked(false);
-      return true;
-    }
-    return false;
+  const unlockApp = async (pinInput: string): Promise<boolean> => {
+    const valid = cloudUserId
+      ? await verifyCloudAppPin(cloudUserId, pinInput)
+      : pinInput === settings.pin;
+    if (valid) setIsLocked(false);
+    return valid;
   };
 
   const unlockWithBiometrics = async (): Promise<boolean> => {
@@ -492,6 +608,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setSettings((prev) => ({ ...prev, ...newSettings }));
   };
 
+  const updateAppLockSettings = async (pin: string | null, enabled: boolean) => {
+    if (pin !== null && !/^\d{4}$/.test(pin)) {
+      throw new Error('PIN must contain exactly four digits.');
+    }
+    if (cloudUserId) await saveCloudAppLock(cloudUserId, pin, enabled);
+    setSettings((previous) => ({
+      ...previous,
+      ...(pin === null ? {} : { pin }),
+      isPinEnabled: enabled,
+    }));
+    if (cloudUserId) remotePinEnabled.current = { ownerId: cloudUserId, enabled };
+  };
+
   const resetAllData = () => {
     Storage.resetAllData();
     if (!cloudUserId) {
@@ -563,6 +692,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         financeCloudError,
         importLocalRecords,
         updateSettings,
+        updateAppLockSettings,
         resetAllData,
         isLocked,
         lockApp,

@@ -40,6 +40,15 @@ test('payment edit/delete recalculates from the ledger, not cached totals', () =
   assert.equal(getAcademicSemesterSummary(semester, edited.filter((record) => record.id !== 'one')).remaining, 38000);
 });
 
+test('dashboard university total sums recorded payments across semesters', () => {
+  const payments = [
+    payment('spring-payment', 30000, 'Registration Fee'),
+    payment('fall-payment', 25000, 'Registration Fee', 'fall-2025'),
+  ];
+  assert.equal(getUniversityTotal(payments), 55000);
+  assert.equal(getUniversityTotal(payments.slice(1)), 25000);
+});
+
 test('university payments never change monthly income, expenses, or remaining balance', () => {
   const incomes: Income[] = [
     { id: 'pocket', type: 'monthly', title: 'Pocket money', category: 'Monthly Allowance', amount: 10000, date: '2025-02-01', month: 1, year: 2025 },

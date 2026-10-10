@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import {
   Settings,
@@ -15,6 +15,7 @@ export const SettingsView: React.FC = () => {
   const {
     settings,
     updateSettings,
+    updateAppLockSettings,
     resetAllData,
     lockApp,
     incomes,
@@ -24,6 +25,7 @@ export const SettingsView: React.FC = () => {
     specialWallets,
     semesters,
     academicReceipts,
+    academicUser,
   } = useApp();
 
   const [pinInput, setPinInput] = useState(settings.pin);
@@ -31,22 +33,50 @@ export const SettingsView: React.FC = () => {
   const [userEmailInput, setUserEmailInput] = useState(settings.userEmail);
   const [currencyInput, setCurrencyInput] = useState(settings.currencySymbol);
   const [isSaved, setIsSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [securityError, setSecurityError] = useState('');
 
-  const handleSaveSettings = (e: React.FormEvent) => {
+  useEffect(() => {
+    setPinInput(academicUser ? '' : settings.pin);
+  }, [academicUser?.id]);
+
+  const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
-    updateSettings({
-      pin: pinInput.length === 4 ? pinInput : settings.pin,
-      userName: userNameInput,
-      userEmail: userEmailInput,
-      currencySymbol: currencyInput || '৳',
-    });
-    setIsSaved(true);
-    setTimeout(() => setIsSaved(false), 2000);
+    if (pinInput && pinInput.length !== 4) {
+      setSecurityError('PIN must contain exactly four digits.');
+      return;
+    }
+    setSaving(true);
+    setSecurityError('');
+    try {
+      await updateAppLockSettings(pinInput || null, settings.isPinEnabled);
+      updateSettings({
+        userName: userNameInput,
+        userEmail: userEmailInput,
+        currencySymbol: currencyInput || '৳',
+      });
+      if (academicUser) setPinInput('');
+      setIsSaved(true);
+      setTimeout(() => setIsSaved(false), 2000);
+    } catch (cause) {
+      setSecurityError(cause instanceof Error ? cause.message : 'Could not save your app lock settings.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handlePinLockChange = async (enabled: boolean) => {
+    setSecurityError('');
+    try {
+      await updateAppLockSettings(null, enabled);
+    } catch (cause) {
+      setSecurityError(cause instanceof Error ? cause.message : 'Could not update your app lock setting.');
+    }
   };
 
   const handleExportData = () => {
     const backupData = {
-      settings,
+      settings: { ...settings, pin: '' },
       incomes,
       expenses,
       universityPayments,
@@ -110,7 +140,8 @@ export const SettingsView: React.FC = () => {
               <input
                 type="checkbox"
                 checked={settings.isPinEnabled}
-                onChange={(e) => updateSettings({ isPinEnabled: e.target.checked })}
+                disabled={saving}
+                onChange={(e) => void handlePinLockChange(e.target.checked)}
                 className="sr-only peer"
               />
               <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600" />
@@ -124,12 +155,21 @@ export const SettingsView: React.FC = () => {
               <input
                 type="password"
                 maxLength={4}
+                inputMode="numeric"
+                autoComplete="new-password"
                 value={pinInput}
                 onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ''))}
+                placeholder={academicUser ? 'New PIN' : undefined}
                 className="w-32 px-3 py-2 text-center text-lg font-bold tracking-widest bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500"
               />
+              <p className="text-[11px] text-slate-500">
+                {academicUser
+                  ? 'Leave blank to keep your shared account PIN. A new PIN syncs to your other signed-in devices.'
+                  : 'Enter four digits to change your PIN.'}
+              </p>
             </div>
           )}
+          {securityError && <p className="text-xs font-medium text-rose-700" role="alert">{securityError}</p>}
 
           {/* Toggle Biometric */}
           <div className="flex items-center justify-between py-1 border-t border-slate-100 pt-3">
@@ -156,7 +196,7 @@ export const SettingsView: React.FC = () => {
             onClick={lockApp}
             className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
           >
-            Lock App Now (Test Security)
+            Lock App Now
           </button>
         </div>
 
@@ -203,9 +243,10 @@ export const SettingsView: React.FC = () => {
 
           <button
             type="submit"
+            disabled={saving}
             className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer shadow-xs"
           >
-            Save Profile & Preferences
+            {saving ? 'Saving...' : 'Save Profile & Preferences'}
           </button>
         </div>
 

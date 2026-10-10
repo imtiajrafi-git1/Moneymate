@@ -32,11 +32,9 @@ export const Header: React.FC = () => {
             <span className="hidden sm:inline">{activeTab === 'university' ? 'Record payment' : 'New entry'}</span>
             <span className="sm:hidden">{activeTab === 'university' ? 'Pay' : 'Add'}</span>
           </button>
-          {settings.isPinEnabled && (
-            <button onClick={lockApp} aria-label="Lock application" title="Lock App" className="h-8 w-8 sm:h-9 sm:w-9 grid place-items-center rounded-full border border-[#D8C3B3] bg-white/70 text-[#635B6B] backdrop-blur-sm transition-colors hover:text-[#2E2733] hover:border-[#C4AB94] cursor-pointer">
-              <Lock className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-            </button>
-          )}
+          <button onClick={lockApp} aria-label="Lock application" title="Lock App" className="h-8 w-8 sm:h-9 sm:w-9 grid place-items-center rounded-full border border-[#D8C3B3] bg-white/70 text-[#635B6B] backdrop-blur-sm transition-colors hover:text-[#2E2733] hover:border-[#C4AB94] cursor-pointer">
+            <Lock className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+          </button>
         </div>
       </div>
     </header>

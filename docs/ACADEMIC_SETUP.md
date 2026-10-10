@@ -36,6 +36,9 @@ browser developer tools or the device profile. Do not treat a local PIN as datab
    changes are then saved to that account. To upload existing device records, reopen the cloud
    dialog, explicitly consent, and select **Back up device records**. Matching IDs are updated;
    this is a merge, not an automatic destructive sync.
+7. Sign in with the same Supabase account on each device. Cloud records load when the app opens
+   and refresh when it returns to the foreground; records entered while signed out remain local
+   until explicitly backed up.
 
 Local device records are kept when cloud is connected. Cloud reads are not written into the
 localStorage keys, so signing out restores the device ledger rather than another account's data.

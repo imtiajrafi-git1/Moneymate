@@ -19,6 +19,7 @@ export function useAcademicData(isLocked: boolean) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [dataOwner, setDataOwner] = useState<string | null>(null);
+  const dataOwnerRef = useRef(dataOwner);
   const [revision, setRevision] = useState(0);
   const current = useRef(data);
   const owner = useRef<string | null>(null);
@@ -43,15 +44,35 @@ export function useAcademicData(isLocked: boolean) {
     if (isLocked) return;
     let alive = true;
     setError('');
-    if (!user) { setData(loadLocalAcademic()); setDataOwner(null); setLoading(false); return; }
+    if (!user) {
+      setData(loadLocalAcademic());
+      dataOwnerRef.current = null;
+      setDataOwner(null);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     // Device records are never silently uploaded into a newly signed-in account.
-    setData({ semesters: [], payments: [], receipts: [] });
-    void loadAcademicCloud(user.id).then((snapshot) => { if (alive) { setData(snapshot); setDataOwner(user.id); } })
+    if (dataOwnerRef.current !== user.id) setData({ semesters: [], payments: [], receipts: [] });
+    void loadAcademicCloud(user.id).then((snapshot) => {
+      if (alive) {
+        setData(snapshot);
+        dataOwnerRef.current = user.id;
+        setDataOwner(user.id);
+      }
+    })
       .catch((cause: unknown) => { if (alive) setError(cause instanceof Error ? cause.message : 'Could not load cloud records.'); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, [user?.id, isLocked, revision]);
+
+  useEffect(() => {
+    const refreshWhenVisible = () => {
+      if (!document.hidden && !locked.current && !busy.current) setRevision((value) => value + 1);
+    };
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    return () => document.removeEventListener('visibilitychange', refreshWhenVisible);
+  }, []);
 
   const operation = useCallback(async <T,>(task: (ownerId: string | null) => Promise<T>): Promise<T> => {
     if (locked.current) throw new Error('Unlock the app before changing academic records.');
@@ -66,6 +87,7 @@ export function useAcademicData(isLocked: boolean) {
     if (!ownerId) Storage.saveAcademicSnapshot(snapshot);
     current.current = snapshot;
     setData(snapshot);
+    dataOwnerRef.current = ownerId;
     setDataOwner(ownerId);
   };
 
